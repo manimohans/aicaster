@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Add this at the top level
 console.warn('Route file loaded!');
 
-const FARCASTER_API = 'https://nemes.farcaster.xyz:2281';
+const BASE_URL = "https://nemes.farcaster.xyz:2281";
 
 export async function GET(request: NextRequest) {
   // Try different logging methods
@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   // Log to stdout directly
   process.stdout.write(`Params: fid=${fid}, hash=${hash}\n`);
 
+  // Validate parameters
   if (!fid || !hash) {
     process.stdout.write('Missing parameters!\n');
     return NextResponse.json({ 
@@ -25,25 +26,37 @@ export async function GET(request: NextRequest) {
     }, { status: 400 });
   }
 
+  // Validate fid is a number
+  if (isNaN(Number(fid))) {
+    console.warn('Invalid FID format');
+    return NextResponse.json({ 
+      error: 'FID must be a number' 
+    }, { status: 400 });
+  }
+
   try {
-    const apiUrl = `${FARCASTER_API}/v1/castById?fid=${fid}&hash=${hash}`;
-    console.log('Fetching from:', apiUrl);
-    
-    const response = await fetch(apiUrl);
-    const data = await response.json();
-    
-    console.log('Farcaster API response:', data);
-    
-    if (!response.ok) {
-      throw new Error(`Farcaster API error: ${response.status}`);
+    // Fetch cast data
+    const castResponse = await fetch(
+      `${BASE_URL}/v1/castById?fid=${fid}&hash=${hash}`,
+      { next: { revalidate: 60 } }  // Cache for 60 seconds
+    );
+
+    if (!castResponse.ok) {
+      console.error('Cast fetch failed:', await castResponse.text());
+      return NextResponse.json(
+        { error: `Cast fetch failed: ${castResponse.status}` },
+        { status: castResponse.status }
+      );
     }
 
-    return NextResponse.json(data);
+    const castData = await castResponse.json();
+    return NextResponse.json(castData);
+    
   } catch (error) {
-    console.error('Error in castById route:', error);
-    return NextResponse.json({ 
-      error: 'Failed to fetch cast',
-      details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    console.error('Error in castById:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 

@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { ThemeProvider } from 'next-themes'
 
 export const metadata: Metadata = {
-  title: "AICaster",
-  description: "A Farcaster Social Feed Viewer",
+  title: "AI Cast Feed",
+  description: "AI Cast Feed from Farcaster",
 };
 
 export default function RootLayout({

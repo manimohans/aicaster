@@ -8,6 +8,17 @@ export interface Embed {
     fid: number;
     hash: string;
   };
+  type?: string;
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
+export interface OpenGraphData {
+  title?: string;
+  description?: string;
+  image?: string;
+  url?: string;
 }
 
 export interface CastData {
@@ -17,11 +28,11 @@ export interface CastData {
     timestamp: number;
     network: string;
     castAddBody: {
-      embedsDeprecated: any[];
-      mentions: any[];
+      embedsDeprecated: [];
+      mentions: [];
       parentUrl: string;
       text: string;
-      mentionsPositions: any[];
+      mentionsPositions: [];
       embeds: Embed[];
     };
   };
@@ -30,10 +41,21 @@ export interface CastData {
   signature: string;
   signatureScheme: string;
   signer: string;
-  channelTag: string;
+  channelTag?: string;
 }
 
 export interface UserData {
   pfp: string | null;
   displayName: string;
+}
+
+export interface Cast {
+  fid: number;
+  timestamp: string;
+  text: string;
+  hash: string;
+  embeds: Embed[];
+  pfp: string | null;
+  displayName: string;
+  channelTag: string;
 } 

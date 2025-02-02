@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DateTime } from 'luxon';
-import { CastData, UserData, Embed } from '@/app/types';
+import { CastData, Embed } from '@/app/types';
 
 const FARCASTER_EPOCH = DateTime.fromISO('2021-01-01T00:00:00Z').toSeconds();
 const BASE_URL = "https://nemes.farcaster.xyz:2281";

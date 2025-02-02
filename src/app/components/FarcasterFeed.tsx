@@ -10,7 +10,7 @@ interface Cast {
   timestamp: string;
   text: string;
   hash: string;
-  embeds: any[];
+  embeds: Embed[];
   pfp: string | null;
   displayName: string;
   channelTag: string;
@@ -98,6 +98,11 @@ function TwitterEmbed({ url, castHash }: { url: string; castHash: string }) {
     // Extract tweet ID from URL
     const tweetId = url.split('/').pop()?.split('?')[0];
     
+    if (!tweetId) {
+      setFallbackMode(true);
+      return;
+    }
+
     // If Twitter is blocked or not available, show fallback immediately
     if (!window.twttr || document.querySelector('[data-twitter-blocker="true"]')) {
       setFallbackMode(true);
@@ -126,7 +131,7 @@ function TwitterEmbed({ url, castHash }: { url: string; castHash: string }) {
         if (!result) {
           throw new Error('Tweet embed failed');
         }
-      } catch (error) {
+      } catch {
         setFallbackMode(true);
       }
     };
@@ -161,7 +166,6 @@ function TwitterEmbed({ url, castHash }: { url: string; castHash: string }) {
 function CastEmbed({ fid, hash }: { fid: number; hash: string }) {
   const [castData, setCastData] = useState<Cast | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCast = async () => {
@@ -180,7 +184,7 @@ function CastEmbed({ fid, hash }: { fid: number; hash: string }) {
         
         setCastData({
           fid: data.data.fid,
-          timestamp: new Date(data.data.timestamp * 1000).toLocaleString(),
+          timestamp: new Date(data.data.timestamp * 1000).toISOString(),
           text: data.data.castAddBody.text,
           hash: data.data.hash,
           embeds: data.data.castAddBody.embeds || [],
@@ -188,8 +192,8 @@ function CastEmbed({ fid, hash }: { fid: number; hash: string }) {
           displayName: userData.displayName,
           channelTag: data.data.channelTag
         });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load cast');
+      } catch {
+        console.error('Failed to load cast');
       } finally {
         setLoading(false);
       }
@@ -202,7 +206,7 @@ function CastEmbed({ fid, hash }: { fid: number; hash: string }) {
     return <div className="text-center p-4">Loading cast...</div>;
   }
   
-  if (error || !castData) {
+  if (!castData) {
     return <div className="text-center text-red-500 p-4">Failed to load cast</div>;
   }
 
@@ -229,9 +233,14 @@ function CastEmbed({ fid, hash }: { fid: number; hash: string }) {
           {castData.displayName}
         </span>
       </div>
-      <p className="text-white">{castData.text}</p>
-      <div className="mt-2 text-xs text-gray-400">
-        {formatDistanceToNow(new Date(castData.timestamp))}
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="font-semibold">{castData.displayName}</span>
+          <span className="text-purple-500">{castData.channelTag}</span>
+          <span className="text-gray-500 dark:text-gray-400">{formatDistanceToNow(new Date(castData.timestamp))}</span>
+        </div>
+        <div className="flex items-center gap-2 mb-2"></div>
+        <div>{castData.text}</div>
       </div>
     </div>
   );
@@ -275,10 +284,10 @@ function EmbedCard({ embed, castHash }: { embed: Embed; castHash: string }) {
       <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
         {getEmbedType()}
       </div>
-      {isCastEmbed && (embed.cast?.fid || embed.castId?.fid) && (embed.cast?.hash || embed.castId?.hash) && (
+      {isCastEmbed && (
         <CastEmbed 
-          fid={embed.cast?.fid || embed.castId?.fid!} 
-          hash={embed.cast?.hash || embed.castId?.hash!} 
+          fid={embed.cast?.fid || embed.castId?.fid || 0}
+          hash={embed.cast?.hash || embed.castId?.hash || ''}
         />
       )}
       {isImageUrl && embed.url && <ImageEmbed url={embed.url} />}
@@ -309,7 +318,21 @@ function EmbedCard({ embed, castHash }: { embed: Embed; castHash: string }) {
 
 declare global {
   interface Window {
-    twttr: any;
+    twttr: {
+      widgets: {
+        createTweet: (
+          tweetId: string,
+          element: HTMLElement | null,
+          options: {
+            theme: string;
+            width: string;
+            align: string;
+            conversation: string;
+            dnt: boolean;
+          }
+        ) => Promise<HTMLElement | undefined>;
+      };
+    };
   }
 }
 
@@ -321,8 +344,23 @@ function processText(text: string) {
 }
 
 function formatTimestamp(timestamp: string): string {
-  const date = new Date(timestamp);
-  return formatDistanceToNow(date, { addSuffix: true });
+  const date = new Date(timestamp + 'Z');
+  
+  console.log({
+    inputTimestamp: timestamp,
+    parsedDate: date,
+    localTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    currentTime: new Date(),
+    offset: date.getTimezoneOffset()
+  });
+  
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
 }
 
 export function FarcasterFeed() {
@@ -353,7 +391,7 @@ export function FarcasterFeed() {
 
   return (
     <div className="space-y-6 font-mono text-sm">
-      {casts.map((cast, index) => {
+      {casts.map(cast => {
         const processedText = processText(cast.text);
         
         return (
@@ -401,16 +439,13 @@ export function FarcasterFeed() {
                 <div className="text-xs text-blue-500">
                   Debug: Cast has {cast.embeds.length} embeds
                 </div>
-                {cast.embeds.map((embed, embedIndex) => {
-                  //console.log(`Processing embed ${embedIndex} for cast ${index}:`, embed);
-                  return (
-                    <EmbedCard 
-                      key={`${cast.hash}-embed-${embedIndex}`} 
-                      embed={embed} 
-                      castHash={cast.hash} 
-                    />
-                  );
-                })}
+                {cast.embeds.map((embed: Embed, i: number) => (
+                  <EmbedCard 
+                    key={`${cast.hash}-embed-${i}`} 
+                    embed={embed} 
+                    castHash={cast.hash} 
+                  />
+                ))}
               </div>
             )}
           </div>
